@@ -1,0 +1,377 @@
+---
+title: "OLS: Crime Rates"
+author: "Victoria Bolotova"
+date: "24 01 2022"
+output: 
+    html_document:
+      theme: cosmo
+      code_folding: show
+      toc: true
+      toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+library(dplyr)
+library(MASS)
+library(lm.beta)
+```
+
+# Part 1
+
+## 1. Simple regressions with different predictors
+
+Explanation of crime rates in Boston
+
+Data set contains 506 rows and 14 columns
+
+```{r}
+dim(Boston)
+```
+Let's look at variables' names
+
+```{r}
+names(Boston)
+```
+Let's look at the data more closely
+
+```{r}
+glimpse(Boston)
+```
+
+* dependent variable is `crim`, that denotes per capita crime rate by town.
+
+```{r}
+summary(Boston$crim)
+```
+* independent variable is `lstat`, that reflects lower status of the population (percent).
+
+```{r}
+summary(Boston$lstat)
+```
+### Continious predictor
+
+```{r}
+model1 <- lm(crim ~ lstat, data = Boston)
+summary(model1)
+```
+
+* The model fits the data well, as F-statistics shows the p-value *(2.2e-16)* much smaller than 0.05. It means that changes in the `percent of lower status of the population` are associated with changes in the `crime rate by town` at the population level in Boston. 
+
+* Adjusted R-squared equals 0.206, it means that *20%* of variance in `crime rate in Boston by town` can be explained by the first simple regression model or, on other words, by `the percent of lower status of the population`. Thus, I can conclude the explanatory power is good as 20% of the variation in crime rate is completely explained by the percent of lower status of the population. 
+
+* The relationship between variables is positive as there is no "-" before the Beta coefficient. 
+
+* Residual standard error is 7.664 on 504 degrees of freedom, which represents the difference between the observed `crime rate in Boston by town` and `crime rate in Boston by town` predicted by the `percent of lower status of the population`.
+
+**Interpretation of the coefficients**
+
+* For each additional percent of lower status of the population the predicted crime rate in Boston by town is 0.5 higher, on average, holding everything else constant.
+
+* Intercept here is negative, so I would not interpret it. 
+
+
+```{r}
+lm.beta(model1)
+```
+- Standardized coefficients are different from unstandardized ones.
+  - Standardized coefficient for intercept equals to 0. 
+  - Standardized coefficient for `percent of lower status of the population` equals to 0.45, meanwhile unstandardized one equals to 0.5. 
+  - 0.45 SD is a predicted change of crime_rates in Boston when the percentage of lower status of the population changes on 1SD.
+
+### Factor predictor
+
+```{r}
+Boston$chas <- as.factor(Boston$chas) 
+model2 <- lm(crim ~ chas, data = Boston)
+summary(model2)
+```
+* The model fits the data poorly, as F-statistics shows the p-value *(0.2094)* much higher than 0.05. It means that change in the `chas` is not associated with changes in the `crime rate by town` at the population level in Boston. Thus, I should not include this variable in other models at least as main effect. 
+
+* Adjusted R-squared equals 0.001146, which means that only *0.1%* of variance in `crime rate in Boston by town` can be explained by the second simple regression model or, on other words, by the fact whether tract bounds river or not. 
+
+* Probably, there is no sense to interpret the coefficient as it is not significant.
+
+Now I change baseline of a `chas`.
+
+```{r}
+Boston$chas <- relevel(Boston$chas, ref = 2)
+```
+
+And run liner regression again. 
+
+```{r}
+model2_1 <- lm(crim ~ chas, data = Boston)
+summary(model2_1)
+```
+
+## 2. Multiple regression
+
+Now I am going to add predictors one by one and interpret the best model after the comparison. 
+
+```{r}
+summary(Boston$dis)
+```
+
+
+```{r}
+model3 <- lm(crim ~ lstat + dis, data = Boston)
+summary(model3)
+```
+
+```{r}
+summary(Boston$black)
+```
+
+
+```{r}
+model4 <- update(model3, ~. + black)
+summary(model4)
+```
+
+* ptratio is the number of teachers relative to the number of pupils in a particular school.
+
+```{r}
+summary(Boston$ptratio)
+```
+
+minimum number is ~12, which means there are 12 students for every one teacher.
+
+
+```{r}
+model5 <- update(model4, ~. + ptratio)
+summary(model5)
+```
+
+## 3. Check multicollinearity
+
+"The VIF of a predictor is a measure for how easily it is predicted from a linear regression using the other predictors."
+
+```{r}
+library(car)
+vif(model5)
+```
+
+All predictors have variation inflation factors that are less than 2, so we can continue to work with this set of predictors. 
+
+# Part 2
+
+## Comparing nested models 
+
+```{r}
+#Comparing nested models -> anova {stats}. Comparing residuals = unexplained variances with control by df (degrees of freedom)
+anova(model1, model3, model4, model5) # which one is better?
+```
+* From anova testing we see that all p-values are much less than 0.05, it means that the second model is better than first one and third one is better than second one, and the forth is better than the third one. Therefore, the best model is the forth one (means model5). Decreasing RSS means that less unexplained variances are left when we add predictors. 
+
+## Interpretation of the best model
+
+```{r}
+summary(model5)
+```
+* The model fits the data pretty well, as F-statistics shows the p-value *(2.2e-16)* much smaller than 0.05.  
+
+* Adjusted R-squared equals 0.29, it means that *29%* of variance in `crime rate in Boston by town` can be explained by knowing these four variables. 
+
+* Residual standard error is 7.245 on 501 degrees of freedom, which represents the difference between the observed `crime rate in Boston by town` and `crime rate in Boston by town` predicted by the best model. 
+
+**Interpretation of the unstandardized coefficients**
+
+* The relationship between lower status of the population (percent) and crime rates is positive. For each additional percent of lower status of the population the predicted crime rate in Boston by town is 0.3 higher, on average, holding everything else constant.
+
+* The relationship between weighted mean of distances to five Boston employment centres and crime rates is negative. For each additional unit of distances to employment centres the predicted crime rate in Boston is 0.7 lower, on average, holding everything else constant. Um...strange result...
+
+* The relationship between the proportion of black by town and crime rates is negative. For each additional unit of blacks the predicted crime rate in Boston is 0.02 lower, on average, holding everything else constant. 
+
+* The relationship between pupil-teacher ratio by town and crime rates is positive. For each additional pupil for the teacher the predicted crime rate in Boston by town is 0.47 higher, on average, holding everything else constant.
+
+To be able to actually compare the strength of each independent variable on the crime rates and access its magnitude, let's look at the standardized coefficients.
+
+**Interpretation of the standardized coefficients**
+
+```{r}
+lm.beta(model5)
+```
+
+* Every increase of one standard deviation in a percentage of lower status of the population leads to the increase in crime rates in Boston by **0.25** standard deviations. 
+
+* Every increase of one standard deviation in a weighted mean of distances to five Boston employment centres leads to the decrease in crime rates in Boston by **0.16** standard deviations. 
+
+* Every increase of one standard deviation in the proportion of black by town leads to the decrease in crime rates in Boston by **0.23** standard deviations. 
+
+* Every increase of one standard deviation in the pupil-teacher ratio leads to the increase in crime rates in Boston by **0.12** standard deviations. 
+
+Therefore, I can conclude that `lstat` possess the greatest strength for explaining crime rates. Then goes `black`, then `dis` and the variable with the least strength is `ptratio`.
+
+
+## Comparing non-nested models
+
+Let's build linear regression to predict crime rates, but with different predictors.
+
+```{r}
+model6 <- lm(crim ~ zn + indus + chas + age, data = Boston)
+AIC(model6)
+```
+
+```{r}
+AIC(model5)
+```
+AIC is smaller for the 5th model!
+
+## Forward vs. backward selection
+
+* adding factors and comparing models = forward
+* removing insignificat factors = backward
+
+what drawbacks do these methods have?
+
+As for the drawbacks of forward selection:
+
+1) "Suppressor effects". That means when we add new predictors to the model one by one, other predictors (that are in the model initially) become insignificant (although previously they were significant) because new added variable(s) possesses more strength to explain dependent variable. 
+2) "Do not have the capacity to identify less predictive individual variables that may not enter the model to demonstrate their joint behaviour." https://fmch.bmj.com/content/fmch/8/1/e000262.full.pdf 
+
+
+As for the drawbacks of backward selection:
+
+1) "Once a variable is eliminated from the model it is not re-entered again, but dropped variable may become significant later in the final model."
+
+The invalid estimation of p-value is a problem for both these approaches.
+
+## Visualisation
+
+Let's transform `crim` into logarithmic scale to get more understandable plot of the relationship. 
+
+
+```{r}
+Boston$crime_log10 <- log(Boston$crim + 1)
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(Boston, aes(lstat, crime_log10)) + 
+  geom_point(color = "skyblue") + 
+  geom_smooth(method = "lm", se = FALSE, color = "skyblue") +
+  labs(y="Per capita crime rate by town", 
+       x="Lower status of the population (percent)", 
+       title="The relation between lower status of population and crime rates") +
+  theme_classic()
+```
+
+
+# Part 3 
+
+## Interaction effect
+
+Now I want to add interaction between lower status of the population and pupil-teacher ratio to the the third model.
+
+```{r}
+model_inter <- lm(crim ~ lstat*ptratio + dis + black, data = Boston)
+summary(model_inter)
+```
+* The estimate for `lstat` and `ptratio` interaction is 0.09 (in unstandardized coefficients). Now the effect of percentage of lower status of the population on crime rates differs based on magnitude of a pupil-teacher ratio. The 1 unit increase pupil-teacher ratio leads to 0.1 increase in the effect of the percentage of lower status of the population on crime rates. This findings seems to be logical as teacher attention, support is crucial for pupils of low-income families to have positive adaptation, successful outcomes in the future. But when there is a shortage of teachers, pupils do not get enough help, which influences on their life.
+
+* Adjusted R-squared equals to 0.32, which means that the model with interaction term can explain 3 percent more, then additive model. 
+
+Let's compare whether the model with interaction term is better, than the model5 to be sure:
+
+```{r}
+anova(model5, model_inter)
+```
+Yeah, indeed, interaction effect makes the model better at explaining crime rates at Boston. 
+## Visualisation of interaction effect.
+
+```{r}
+library(sjPlot)
+plot_model(model_inter, type="int", title = "Predicted values of Satisfaction with life", colors = "Dark2") + theme_classic()
+```
+
+From the plot above, we can conclude that:
+
+* When pupil-teacher ratio is minimum (~ 12 pupils on 1 teacher), the higher the percentage of lower status of the population, the lower the crime rates in Boston. 
+* When pupil-teacher ratio is maximum (22 pupils on 1 teacher), the higher the percentage of lower status of the population, the higher the crime rates in Boston. 
+* Hence, we cannot consider the effect of lstat on crime rates alone, since the effect depends on pupil-teacher ratio. Hence, the negative effect is not about poverty itself, but it is about the lack of teachers in the towns. 
+
+# EXTRA TASK
+
+## Outliers and leverages
+
+```{r}
+outlierTest(model5) #Bonferonni p-value for most extreme obs
+```
+
+```{r}
+qqPlot(model5, main="QQ Plot") #qq plot for studentized resid 
+```
+
+```{r}
+leveragePlots(model5)
+```
+```{r}
+par(mfrow=c(2,2))
+plot(model4)
+```
+
+
+## Calculating RMSE
+
+```{r}
+RSS <- c(crossprod(model5$residuals))
+```
+
+## Mean squared error
+
+```{r}
+MSE <- RSS / length(model4$residuals)
+```
+
+## Root MSE:
+
+```{r}
+RMSE <- sqrt(MSE)
+```
+
+## Pearson estimated residual variance (as returned by summary.lm):
+
+```{r}
+sig2 <- RSS / model5$df.residual
+```
+
+
+
+## Distribution of studentized residuals
+
+```{r}
+library(MASS)
+sresid <- studres(model5) 
+hist(sresid, freq=FALSE, 
+     main="Distribution of Studentized Residuals")
+xfit<-seq(min(sresid),max(sresid),length=40) 
+yfit<-dnorm(xfit) 
+lines(xfit, yfit)
+```
+
+## Evaluate homoscedasticity
+
+non-constant error variance test
+
+```{r}
+ncvTest(model5)
+```
+
+
+```{r}
+library(lmtest)
+bptest(model5)
+```
+
+Bots tests indicates that there is a sign of heteroscedasticity
+
+
+
+
+
